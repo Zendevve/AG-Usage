@@ -8,7 +8,7 @@
   },
   "description": "Premium AI usage dashboard for AntiGravity with burn rate tracking, exhaustion predictions, and beautiful insights",
   "license": "MIT",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -50,7 +50,26 @@
         "command": "antigravity-quota.detectPort",
         "title": "Antigravity: Re-detect Port"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Antigravity Usage",
+      "properties": {
+        "antigravity.warningThreshold": {
+          "type": "number",
+          "default": 25,
+          "minimum": 5,
+          "maximum": 50,
+          "description": "Show warning notification when quota drops below this percentage"
+        },
+        "antigravity.refreshInterval": {
+          "type": "number",
+          "default": 60,
+          "minimum": 30,
+          "maximum": 300,
+          "description": "How often to refresh quota data (in seconds)"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

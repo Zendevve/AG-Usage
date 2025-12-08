@@ -14,6 +14,7 @@ export interface UsageInsight {
   trendDirection: 'stable' | 'decreasing' | 'warning' | 'critical';
   sessionUsage: number;          // % used in current session
   isActive: boolean;             // Is this the likely active model
+  historyData: number[];         // Last N data points for sparkline
 }
 
 export interface ModelWithInsights extends ModelQuota {
@@ -145,9 +146,14 @@ export class InsightsService {
         predictedExhaustionLabel,
         trendDirection,
         sessionUsage,
-        isActive
+        isActive,
+        historyData: this.getHistoryData(model.modelId)
       }
     };
+  }
+
+  private getHistoryData(modelId: string): number[] {
+    return this.history.map(entry => entry.models.get(modelId) ?? 100);
   }
 
   private calculateBurnRate(modelId: string): number {

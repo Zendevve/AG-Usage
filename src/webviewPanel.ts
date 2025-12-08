@@ -161,6 +161,21 @@ export class DashboardPanel {
       min-width: 50px;
     }
 
+    /* Sparkline */
+    .sparkline {
+      width: 48px;
+      height: 16px;
+      opacity: 0.6;
+    }
+
+    .sparkline polyline {
+      fill: none;
+      stroke: var(--vscode-foreground);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     /* Insights (hidden by default) */
     .model-insights {
       font-size: 11px;
@@ -243,12 +258,33 @@ export class DashboardPanel {
       <div class="model-row">
         <span class="model-name ${activeClass}">${model.label}</span>
         <div class="model-right">
+          ${this.renderSparkline(model.insights.historyData)}
           <span class="model-reset">${reset}</span>
           <span class="model-percent ${percentClass}">${model.remainingPercent}%</span>
         </div>
       </div>
       ${this.showInsights ? insightsHtml : ''}
     `;
+  }
+
+  private renderSparkline(data: number[]): string {
+    if (!data || data.length < 2) return '';
+
+    const width = 48;
+    const height = 16;
+    const padding = 2;
+
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min || 1;
+
+    const points = data.map((value, index) => {
+      const x = padding + (index / (data.length - 1)) * (width - padding * 2);
+      const y = height - padding - ((value - min) / range) * (height - padding * 2);
+      return `${x},${y}`;
+    }).join(' ');
+
+    return `<svg class="sparkline" viewBox="0 0 ${width} ${height}"><polyline points="${points}"/></svg>`;
   }
 
   private renderCredits(credits: { available: number; monthly: number; remainingPercent: number }): string {
