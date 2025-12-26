@@ -23,10 +23,28 @@ export interface PromptCredits {
   remainingPercent: number;
 }
 
+export interface FlowCredits {
+  available: number;
+  monthly: number;
+  usedPercent: number;
+  remainingPercent: number;
+}
+
+export interface UserInfo {
+  name: string;
+  email: string;
+  planName: string;
+  tier: string;
+}
+
 export interface QuotaSnapshot {
   timestamp: Date;
   promptCredits?: PromptCredits;
+  flowCredits?: FlowCredits;
+  userInfo?: UserInfo;
   models: ModelQuota[];
+  isConnected: boolean;
+  errorMessage?: string;
 }
 
 export class QuotaService {
@@ -130,7 +148,7 @@ export class QuotaService {
     const planStatus = userStatus.planStatus;
     const cascadeData = userStatus.cascadeModelConfigData;
 
-    // Parse prompt credits
+    // Parse prompt credits (reasoning)
     let promptCredits: PromptCredits | undefined;
     if (planStatus) {
       const planInfo = planStatus.planInfo;
@@ -147,6 +165,38 @@ export class QuotaService {
         };
         console.log(`[QuotaService] Prompt Credits: ${available}/${monthly} (${promptCredits.remainingPercent}% remaining)`);
       }
+    }
+
+    // Parse flow credits (execution/tool use)
+    let flowCredits: FlowCredits | undefined;
+    if (planStatus) {
+      const planInfo = planStatus.planInfo;
+      const available = Number(planStatus.availableFlowCredits || 0);
+      const monthly = Number(planInfo?.monthlyFlowCredits || 0);
+
+      if (monthly > 0) {
+        const used = monthly - available;
+        flowCredits = {
+          available,
+          monthly,
+          usedPercent: Math.round((used / monthly) * 100),
+          remainingPercent: Math.round((available / monthly) * 100)
+        };
+        console.log(`[QuotaService] Flow Credits: ${available}/${monthly} (${flowCredits.remainingPercent}% remaining)`);
+      }
+    }
+
+    // Parse user info
+    let userInfo: UserInfo | undefined;
+    if (userStatus) {
+      const planInfo = planStatus?.planInfo;
+      userInfo = {
+        name: userStatus.name || 'Unknown User',
+        email: userStatus.email || '',
+        planName: planInfo?.planName || 'Free',
+        tier: userStatus.userTier?.name || planInfo?.teamsTier || 'Free'
+      };
+      console.log(`[QuotaService] User: ${userInfo.name} (${userInfo.tier})`);
     }
 
     // Parse model quotas from cascadeModelConfigData.clientModelConfigs
@@ -193,7 +243,10 @@ export class QuotaService {
     return {
       timestamp: new Date(),
       promptCredits,
-      models
+      flowCredits,
+      userInfo,
+      models,
+      isConnected: true
     };
   }
 

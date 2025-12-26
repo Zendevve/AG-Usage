@@ -1,13 +1,17 @@
 /**
  * Process Port Detector
  * Detects Antigravity language server process and extracts connection params.
- * Based on wusimpl/AntigravityQuotaWatcher and Henrik-3/AntigravityQuota.
+ *
+ * v0.5.0: Hybrid detection strategy
+ * 1. Primary: Pure Node.js socket scanner (works in DevContainers, WSL, SSH)
+ * 2. Fallback: OS-specific commands (PowerShell/lsof) for PID-based discovery
  */
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as https from 'https';
 import { getPlatformConfig, PlatformStrategy } from './platformStrategies';
+import { SocketScanner } from './socketScanner';
 
 const execAsync = promisify(exec);
 
@@ -20,59 +24,101 @@ export interface PortDetectionResult {
 export class PortDetector {
   private strategy: PlatformStrategy;
   private processName: string;
+  private socketScanner: SocketScanner;
 
   constructor() {
     const config = getPlatformConfig();
     this.strategy = config.strategy;
     this.processName = config.processName;
+    this.socketScanner = new SocketScanner(8090, 8150, 500);
   }
 
   /**
-   * Detect port and CSRF token from running Antigravity process
+   * Detect port and CSRF token from running Antigravity process.
+   * Uses hybrid approach: socket scanner first, then OS commands as fallback.
    */
   async detect(maxRetries: number = 3, retryDelay: number = 2000): Promise<PortDetectionResult | null> {
+    // Try socket scanner first (works in restricted environments)
+    const socketResult = await this.detectWithSocketScanner();
+    if (socketResult) {
+      return socketResult;
+    }
+
+    // Fallback to OS-based detection
+    console.log('[PortDetector] Socket scanner failed, falling back to OS commands...');
+    return this.detectWithOSCommands(maxRetries, retryDelay);
+  }
+
+  /**
+   * Primary detection: Pure Node.js socket scanner
+   * Works in DevContainers, WSL, SSH, restricted environments
+   */
+  private async detectWithSocketScanner(): Promise<PortDetectionResult | null> {
+    console.log('[PortDetector] Attempting socket-based detection (universal method)...');
+
+    try {
+      // First, get CSRF token from process (still need OS for this)
+      const command = this.strategy.getProcessListCommand(this.processName);
+      const { stdout } = await execAsync(command, { timeout: 10000 });
+      const processInfo = this.strategy.parseProcessInfo(stdout);
+
+      if (!processInfo || !processInfo.csrfToken) {
+        console.log('[PortDetector] Could not extract CSRF token from process');
+        return null;
+      }
+
+      const { extensionPort, csrfToken } = processInfo;
+      console.log(`[PortDetector] Got CSRF token: ${csrfToken.substring(0, 8)}...`);
+
+      // Use socket scanner to find the API port
+      const scanResult = await this.socketScanner.scan(csrfToken);
+
+      if (scanResult) {
+        console.log(`[PortDetector] Socket scanner found API port: ${scanResult.port}`);
+        return {
+          connectPort: scanResult.port,
+          extensionPort: extensionPort || scanResult.port,
+          csrfToken: csrfToken
+        };
+      }
+    } catch (error: any) {
+      console.log(`[PortDetector] Socket scanner error: ${error.message}`);
+    }
+
+    return null;
+  }
+
+  /**
+   * Fallback detection: OS-specific commands (PowerShell, lsof, netstat)
+   * More reliable but requires specific tools installed
+   */
+  private async detectWithOSCommands(maxRetries: number, retryDelay: number): Promise<PortDetectionResult | null> {
     const errorMessages = this.strategy.getErrorMessages();
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`[PortDetector] Attempt ${attempt}/${maxRetries}: Detecting Antigravity process...`);
+        console.log(`[PortDetector] OS fallback attempt ${attempt}/${maxRetries}...`);
 
-        // Step 1: Get process info (PID, extension_port, csrf_token)
         const command = this.strategy.getProcessListCommand(this.processName);
-        console.log(`[PortDetector] Running: ${command}`);
-
         const { stdout } = await execAsync(command, { timeout: 15000 });
-        const preview = stdout.trim().split('\n').slice(0, 3).join('\n');
-        console.log(`[PortDetector] Output preview:\n${preview || '(empty)'}`);
-
         const processInfo = this.strategy.parseProcessInfo(stdout);
 
         if (!processInfo) {
-          console.warn(`[PortDetector] ${errorMessages.processNotFound}`);
           throw new Error(errorMessages.processNotFound);
         }
 
         const { pid, extensionPort, csrfToken } = processInfo;
         console.log(`[PortDetector] Found PID: ${pid}, extensionPort: ${extensionPort}`);
-        console.log(`[PortDetector] CSRF Token: ${csrfToken.substring(0, 8)}...`);
 
-        // Step 2: Get all listening ports for this PID
-        console.log(`[PortDetector] Fetching listening ports for PID ${pid}...`);
         const listeningPorts = await this.getListeningPorts(pid);
 
         if (listeningPorts.length === 0) {
-          console.warn(`[PortDetector] Process is not listening on any ports`);
           throw new Error('Process is not listening on any ports');
         }
 
-        console.log(`[PortDetector] Found ${listeningPorts.length} listening ports: ${listeningPorts.join(', ')}`);
-
-        // Step 3: Test each port to find the working API endpoint
-        console.log('[PortDetector] Testing port connectivity...');
         const connectPort = await this.findWorkingPort(listeningPorts, csrfToken);
 
         if (!connectPort) {
-          console.warn(`[PortDetector] All port tests failed`);
           throw new Error('Unable to find a working API port');
         }
 
@@ -83,18 +129,12 @@ export class PortDetector {
         console.error(`[PortDetector] Attempt ${attempt} failed:`, error.message);
 
         if (attempt < maxRetries) {
-          console.log(`[PortDetector] Waiting ${retryDelay}ms before retry...`);
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     }
 
-    console.error(`[PortDetector] All ${maxRetries} attempts failed`);
-    console.error('[PortDetector] Please ensure:');
-    errorMessages.requirements.forEach((req, i) => {
-      console.error(`[PortDetector]   ${i + 1}. ${req}`);
-    });
-
+    console.error(`[PortDetector] All detection methods failed`);
     return null;
   }
 

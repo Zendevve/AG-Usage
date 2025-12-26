@@ -7,6 +7,8 @@ import * as vscode from 'vscode';
 import { ModelQuota } from './quotaService';
 import { SnapshotWithInsights, ModelWithInsights } from './insights';
 
+export type DisplayStyle = 'percentage' | 'progressBar' | 'dots';
+
 export class StatusBarManager implements vscode.Disposable {
   private statusBarItem: vscode.StatusBarItem;
   private lastSnapshot: SnapshotWithInsights | undefined;
@@ -41,8 +43,14 @@ export class StatusBarManager implements vscode.Disposable {
   }
 
   public showRetrying(attempt: number, maxAttempts: number) {
-    this.statusBarItem.text = `AG ${attempt}/${maxAttempts}`;
+    this.statusBarItem.text = `AG $(sync~spin) ${attempt}/${maxAttempts}`;
     this.statusBarItem.tooltip = `Retrying... (${attempt}/${maxAttempts})`;
+    this.statusBarItem.backgroundColor = undefined;
+  }
+
+  public showRefreshing() {
+    this.statusBarItem.text = 'AG $(sync~spin)';
+    this.statusBarItem.tooltip = 'Refreshing...';
     this.statusBarItem.backgroundColor = undefined;
   }
 
@@ -70,8 +78,10 @@ export class StatusBarManager implements vscode.Disposable {
     const primary = models[0];
     const shortName = this.getShortName(primary.label);
 
-    // Clean, minimal display: "Sonnet 75%"
-    this.statusBarItem.text = `${shortName} ${primary.remainingPercent}%`;
+    // Clean, minimal display based on configured style
+    const config = vscode.workspace.getConfiguration('antigravity');
+    const style = config.get<DisplayStyle>('displayStyle', 'percentage');
+    this.statusBarItem.text = this.formatDisplay(shortName, primary.remainingPercent, style);
 
     // Background only for critical situations
     if (primary.isExhausted || primary.remainingPercent < 15) {
@@ -82,7 +92,7 @@ export class StatusBarManager implements vscode.Disposable {
       this.statusBarItem.backgroundColor = undefined;
     }
 
-    this.statusBarItem.tooltip = this.buildMinimalTooltip(snapshot);
+    this.statusBarItem.tooltip = this.buildMarkdownTooltip(snapshot);
   }
 
   /**
@@ -136,6 +146,73 @@ export class StatusBarManager implements vscode.Disposable {
     }
     // First word, max 6 chars
     return label.split(' ')[0].substring(0, 6);
+  }
+
+  /**
+   * Format display based on style preference
+   */
+  private formatDisplay(name: string, percent: number, style: DisplayStyle): string {
+    switch (style) {
+      case 'progressBar':
+        return `${name} ${this.buildProgressBar(percent)}`;
+      case 'dots':
+        return `${name} ${this.buildDots(percent)}`;
+      case 'percentage':
+      default:
+        return `${name} ${percent}%`;
+    }
+  }
+
+  private buildProgressBar(percent: number): string {
+    const filled = Math.round(percent / 20);
+    const empty = 5 - filled;
+    return '█'.repeat(filled) + '░'.repeat(empty);
+  }
+
+  private buildDots(percent: number): string {
+    const filled = Math.round(percent / 20);
+    const empty = 5 - filled;
+    return '●'.repeat(filled) + '○'.repeat(empty);
+  }
+
+  /**
+   * Build rich markdown tooltip with credits and models
+   */
+  private buildMarkdownTooltip(snapshot: SnapshotWithInsights): vscode.MarkdownString {
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.supportHtml = true;
+
+    // Credits section
+    const config = vscode.workspace.getConfiguration('antigravity');
+    const showFlow = config.get<boolean>('showFlowCredits', true);
+
+    if (snapshot.promptCredits || snapshot.flowCredits) {
+      md.appendMarkdown('### Credits\n');
+      if (snapshot.promptCredits) {
+        const p = snapshot.promptCredits;
+        md.appendMarkdown(`**Prompt** (reasoning): ${p.available.toLocaleString()} / ${p.monthly.toLocaleString()} (${p.remainingPercent}%)\n\n`);
+      }
+      if (showFlow && snapshot.flowCredits) {
+        const f = snapshot.flowCredits;
+        md.appendMarkdown(`**Flow** (execution): ${f.available.toLocaleString()} / ${f.monthly.toLocaleString()} (${f.remainingPercent}%)\n\n`);
+      }
+      md.appendMarkdown('---\n');
+    }
+
+    // Model table
+    md.appendMarkdown('### Models\n\n');
+    md.appendMarkdown('| Model | Quota | Reset |\n');
+    md.appendMarkdown('|-------|-------|-------|\n');
+
+    for (const model of snapshot.modelsWithInsights) {
+      const status = model.isExhausted ? '🔴' : (model.remainingPercent < 25 ? '🟡' : '🟢');
+      const reset = model.timeUntilReset || '—';
+      md.appendMarkdown(`| ${status} ${model.label} | ${model.remainingPercent}% | ${reset} |\n`);
+    }
+
+    md.appendMarkdown('\n*Click for dashboard*');
+    return md;
   }
 
   private buildMinimalTooltip(snapshot: SnapshotWithInsights): string {

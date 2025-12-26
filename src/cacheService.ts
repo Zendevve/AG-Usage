@@ -187,4 +187,104 @@ export class CacheService {
       // Ignore
     }
   }
+
+  // ============================================
+  // Smart Context Flush - Surgical Cache Control
+  // ============================================
+
+  /**
+   * Get info about the active context that would be flushed.
+   * Returns files that will be cleared without touching brain tasks.
+   */
+  public async getFlushPreview(): Promise<{
+    conversationFiles: string[];
+    codeContextFiles: string[];
+    totalSize: number;
+    willDelete: number;
+  }> {
+    const conversationsDir = this.getConversationsDir();
+    const codeContextDir = this.getCodeContextDir();
+
+    let conversationFiles: string[] = [];
+    let codeContextFiles: string[] = [];
+    let totalSize = 0;
+
+    try {
+      const convEntries = await fs.promises.readdir(conversationsDir, { withFileTypes: true });
+      conversationFiles = convEntries
+        .filter(e => e.isFile())
+        .map(e => e.name);
+
+      for (const file of conversationFiles) {
+        try {
+          const stat = await fs.promises.stat(path.join(conversationsDir, file));
+          totalSize += stat.size;
+        } catch { /* ignore */ }
+      }
+    } catch { /* dir doesn't exist */ }
+
+    try {
+      const codeEntries = await fs.promises.readdir(codeContextDir, { withFileTypes: true });
+      codeContextFiles = codeEntries.map(e => e.name);
+
+      for (const file of codeContextFiles) {
+        try {
+          const stat = await fs.promises.stat(path.join(codeContextDir, file));
+          totalSize += stat.size;
+        } catch { /* ignore */ }
+      }
+    } catch { /* dir doesn't exist */ }
+
+    return {
+      conversationFiles,
+      codeContextFiles,
+      totalSize,
+      willDelete: conversationFiles.length + codeContextFiles.length
+    };
+  }
+
+  /**
+   * Smart Context Flush: Surgical cache clearing.
+   *
+   * Clears:
+   * - Active conversation context (short-term memory)
+   * - Code tracking cache (file embeddings)
+   *
+   * Preserves:
+   * - Brain tasks (implementation plans, task.md files)
+   * - Persistent session data
+   *
+   * Use this when the agent is stuck or context is polluted,
+   * without losing your project's mission plans.
+   */
+  public async flushActiveContext(): Promise<{
+    clearedConversations: number;
+    clearedCodeContext: number;
+    freedBytes: number;
+  }> {
+    const preview = await this.getFlushPreview();
+
+    // Clear conversations (short-term agent memory)
+    await this.cleanDirectory(this.getConversationsDir());
+
+    // Clear code context cache (can be rebuilt by agent)
+    await this.cleanDirectory(this.getCodeContextDir());
+
+    return {
+      clearedConversations: preview.conversationFiles.length,
+      clearedCodeContext: preview.codeContextFiles.length,
+      freedBytes: preview.totalSize
+    };
+  }
+
+  /**
+   * Format bytes for human display
+   */
+  public formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
 }

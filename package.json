@@ -8,7 +8,7 @@
   },
   "description": "Premium AI usage dashboard for AntiGravity with burn rate tracking, exhaustion predictions, and beautiful insights",
   "license": "MIT",
-  "version": "0.4.0",
+  "version": "0.8.1",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -53,11 +53,6 @@
     },
     "commands": [
       {
-        "command": "antigravity-quota.showDashboard",
-        "title": "Antigravity: Open Dashboard",
-        "icon": "$(dashboard)"
-      },
-      {
         "command": "antigravity-quota.showMenu",
         "title": "Antigravity: Quick Status"
       },
@@ -85,6 +80,22 @@
       {
         "command": "antigravity-quota.manageCache",
         "title": "Antigravity: Manage Brain Tasks..."
+      },
+      {
+        "command": "antigravity-quota.flushContext",
+        "title": "Antigravity: Flush Active Context",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "antigravity-quota.devPreview",
+        "title": "Antigravity: Dev Preview (Test UI States)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "antigravity-quota.flushContext",
+        "key": "ctrl+shift+alt+f",
+        "mac": "cmd+shift+alt+f"
       }
     ],
     "configuration": {
@@ -103,6 +114,49 @@
           "minimum": 30,
           "maximum": 300,
           "description": "How often to refresh quota data (in seconds)"
+        },
+        "antigravity.adaptivePolling": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically adjust refresh rate based on editor activity (faster during active use, slower when idle)"
+        },
+        "antigravity.displayStyle": {
+          "type": "string",
+          "default": "percentage",
+          "enum": [
+            "percentage",
+            "progressBar",
+            "dots"
+          ],
+          "enumDescriptions": [
+            "Show percentage (e.g. 'Sonnet 75%')",
+            "Show progress bar (e.g. 'Sonnet ████░░')",
+            "Show dots (e.g. 'Sonnet ●●●○○')"
+          ],
+          "description": "How to display quota in status bar"
+        },
+        "antigravity.enableGrouping": {
+          "type": "boolean",
+          "default": false,
+          "description": "Group models with identical quota status (same %, same reset time)"
+        },
+        "antigravity.dashboardTheme": {
+          "type": "string",
+          "default": "modern",
+          "enum": [
+            "modern",
+            "minimal"
+          ],
+          "enumDescriptions": [
+            "Modern Dark - Semi-arc gauge, gradients, premium feel",
+            "Native Minimal - Pure VS Code styling, compact, invisible"
+          ],
+          "description": "Dashboard visual style"
+        },
+        "antigravity.showFlowCredits": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Flow Credits (execution) alongside Prompt Credits (reasoning)"
         },
         "antigravity.pinnedModels": {
           "type": "array",

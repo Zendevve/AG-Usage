@@ -14,9 +14,9 @@ import { QuotaService } from './quotaService';
 import { StatusBarManager } from './statusBar';
 import { PortDetector } from './portDetector';
 import { InsightsService } from './insights';
-import { DashboardPanel } from './webviewPanel';
 import { QuotaViewProvider } from './webviewView';
 import { CacheService } from './cacheService';
+import { ActivityTracker, ActivityState } from './activityTracker';
 
 let intervalId: NodeJS.Timeout | undefined;
 let quotaService: QuotaService;
@@ -25,6 +25,8 @@ let portDetector: PortDetector;
 let insightsService: InsightsService;
 let quotaProvider: QuotaViewProvider;
 let cacheService: CacheService;
+let activityTracker: ActivityTracker;
+let useAdaptivePolling = true;
 
 // Track which models have already triggered a warning (avoid spam)
 const warnedModels: Set<string> = new Set();
@@ -35,7 +37,8 @@ function getConfig() {
   return {
     warningThreshold: config.get<number>('warningThreshold', 25),
     refreshInterval: config.get<number>('refreshInterval', 60),
-    pinnedModels: config.get<string[]>('pinnedModels', [])
+    pinnedModels: config.get<string[]>('pinnedModels', []),
+    adaptivePolling: config.get<boolean>('adaptivePolling', true)
   };
 }
 
@@ -49,29 +52,24 @@ export async function activate(context: vscode.ExtensionContext) {
   insightsService = new InsightsService(context.globalState);
   cacheService = new CacheService();
 
+  // Initialize Activity Tracker for event-driven polling
+  activityTracker = new ActivityTracker();
+  activityTracker.setActivityCallback((state: ActivityState) => {
+    console.log(`[Extension] Activity callback: ${state.level}`);
+    // Trigger immediate refresh on activity
+    if (useAdaptivePolling) {
+      statusBarManager.showRefreshing();
+      activityTracker.markRefresh();
+      pollAndUpdate();
+    }
+  });
+  context.subscriptions.push(activityTracker);
+
   // Register Sidebar View Provider
   quotaProvider = new QuotaViewProvider(context.extensionUri);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(QuotaViewProvider.viewType, quotaProvider)
   );
-
-  // Command: Show Dashboard
-  const dashboardCommand = vscode.commands.registerCommand('antigravity-quota.showDashboard', async () => {
-    const snapshot = statusBarManager.getSnapshot();
-    if (snapshot) {
-      const panel = DashboardPanel.createOrShow(context.extensionUri);
-      panel.update(snapshot);
-    } else {
-      await detectAndPoll();
-      const newSnapshot = statusBarManager.getSnapshot();
-      if (newSnapshot) {
-        const panel = DashboardPanel.createOrShow(context.extensionUri);
-        panel.update(newSnapshot);
-      } else {
-        vscode.window.showWarningMessage('No quota data available yet.');
-      }
-    }
-  });
 
   // Command: Quick Status Menu
   const menuCommand = vscode.commands.registerCommand('antigravity-quota.showMenu', async () => {
@@ -209,8 +207,99 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     }
   });
+
+  // Command: Smart Context Flush (surgical - preserves brain tasks)
+  const flushContextCommand = vscode.commands.registerCommand('antigravity-quota.flushContext', async () => {
+    const preview = await cacheService.getFlushPreview();
+
+    if (preview.willDelete === 0) {
+      vscode.window.showInformationMessage('Active context is already clean.');
+      return;
+    }
+
+    const sizeStr = cacheService.formatBytes(preview.totalSize);
+    const answer = await vscode.window.showWarningMessage(
+      `Flush active context? This will clear ${preview.willDelete} items (${sizeStr}) but preserve your Brain tasks.`,
+      { modal: true },
+      'Flush Context',
+      'Show Details'
+    );
+
+    if (answer === 'Show Details') {
+      const details = [
+        `**Active Context Flush Preview**`,
+        ``,
+        `Conversations: ${preview.conversationFiles.length} files`,
+        `Code Context: ${preview.codeContextFiles.length} files`,
+        `Total Size: ${sizeStr}`,
+        ``,
+        `✓ Brain tasks (implementation plans) will be PRESERVED`,
+        `✓ This is safe to use when agent is stuck or confused`
+      ].join('\n');
+
+      const proceed = await vscode.window.showInformationMessage(
+        details,
+        { modal: true },
+        'Flush Now'
+      );
+
+      if (proceed === 'Flush Now') {
+        const result = await cacheService.flushActiveContext();
+        vscode.window.showInformationMessage(
+          `Flushed ${result.clearedConversations} conversations, ${result.clearedCodeContext} code files. Freed ${cacheService.formatBytes(result.freedBytes)}.`
+        );
+      }
+    } else if (answer === 'Flush Context') {
+      const result = await cacheService.flushActiveContext();
+      vscode.window.showInformationMessage(
+        `Context flushed! Freed ${cacheService.formatBytes(result.freedBytes)}.`
+      );
+    }
+  });
+
+  // Command: Dev Preview (Test UI States)
+  const devPreviewCommand = vscode.commands.registerCommand('antigravity-quota.devPreview', async () => {
+    const options = [
+      { label: '$(sync~spin) Refreshing State', value: 'refreshing' },
+      { label: '$(error) Error State', value: 'error' },
+      { label: '$(pass) Normal State', value: 'normal' },
+      { label: '$(warning) Warning Notification', value: 'warning-notification' },
+      { label: '$(info) Info Notification', value: 'info-notification' },
+      { label: '$(sync) Retry State (1/3)', value: 'retry' }
+    ];
+
+    const selected = await vscode.window.showQuickPick(options, {
+      placeHolder: 'Select UI state to preview',
+      title: 'Dev Preview - Test UI States'
+    });
+
+    if (selected) {
+      switch (selected.value) {
+        case 'refreshing':
+          statusBarManager.showRefreshing();
+          setTimeout(() => pollAndUpdate(), 2000);
+          break;
+        case 'error':
+          statusBarManager.showError('Preview error state');
+          break;
+        case 'normal':
+          await pollAndUpdate();
+          break;
+        case 'warning-notification':
+          vscode.window.showWarningMessage('⚠️ Preview: Claude Sonnet is at 15% quota');
+          break;
+        case 'info-notification':
+          vscode.window.showInformationMessage('ℹ️ Preview: Quota refreshed successfully');
+          break;
+        case 'retry':
+          statusBarManager.showRetrying(1, 3);
+          setTimeout(() => pollAndUpdate(), 2000);
+          break;
+      }
+    }
+  });
+
   context.subscriptions.push(statusBarManager);
-  context.subscriptions.push(dashboardCommand);
   context.subscriptions.push(menuCommand);
   context.subscriptions.push(refreshCommand);
   context.subscriptions.push(detectCommand);
@@ -218,6 +307,8 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(unpinCommand);
   context.subscriptions.push(cleanCacheCommand);
   context.subscriptions.push(manageCacheCommand);
+  context.subscriptions.push(flushContextCommand);
+  context.subscriptions.push(devPreviewCommand);
 
   // Listen for config changes
   context.subscriptions.push(
@@ -237,9 +328,27 @@ export async function activate(context: vscode.ExtensionContext) {
 
 function startPolling() {
   const { refreshInterval } = getConfig();
+
+  // Use adaptive interval if enabled, otherwise use config
+  const interval = useAdaptivePolling
+    ? activityTracker.getState().suggestedInterval
+    : refreshInterval * 1000;
+
+  console.log(`[Extension] Starting polling with ${interval / 1000}s interval`);
+
   intervalId = setInterval(async () => {
     await pollAndUpdate();
-  }, refreshInterval * 1000);
+
+    // Adjust interval based on current activity (for next cycle)
+    if (useAdaptivePolling) {
+      const newInterval = activityTracker.getState().suggestedInterval;
+      const currentInterval = interval;
+      if (Math.abs(newInterval - currentInterval) > 10000) {
+        // Significant change - restart with new interval
+        restartPolling();
+      }
+    }
+  }, interval);
 }
 
 function restartPolling() {
@@ -290,10 +399,7 @@ async function pollAndUpdate() {
         // Check for low quota warnings
         checkQuotaWarnings(enrichedSnapshot);
 
-        // Update dashboard if open
-        if (DashboardPanel.currentPanel) {
-          DashboardPanel.currentPanel.update(enrichedSnapshot);
-        }
+        // Update sidebar
         if (quotaProvider) {
           const cacheInfo = await cacheService.getCacheInfo();
           quotaProvider.update(enrichedSnapshot, cacheInfo);

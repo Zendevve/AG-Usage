@@ -118,23 +118,66 @@ export class InsightsService {
       return a.remainingPercent - b.remainingPercent;
     });
 
+    // Apply grouping if enabled
+    const config = vscode.workspace.getConfiguration('antigravity');
+    const enableGrouping = config.get<boolean>('enableGrouping', false);
+    const finalModels = enableGrouping
+      ? this.groupSimilarModels(modelsWithInsights)
+      : modelsWithInsights;
+
     // Calculate overall health
-    const { overallHealth, healthLabel } = this.calculateOverallHealth(modelsWithInsights);
+    const { overallHealth, healthLabel } = this.calculateOverallHealth(finalModels);
 
     // Calculate total session usage
-    const totalSessionUsage = modelsWithInsights.length > 0
-      ? modelsWithInsights.reduce((sum, m) => sum + m.insights.sessionUsage, 0) / modelsWithInsights.length
+    const totalSessionUsage = finalModels.length > 0
+      ? finalModels.reduce((sum, m) => sum + m.insights.sessionUsage, 0) / finalModels.length
       : 0;
 
     return {
       ...snapshot,
-      modelsWithInsights,
+      modelsWithInsights: finalModels,
       overallHealth,
       healthLabel,
       sessionStartTime: this.sessionStartTime,
       totalSessionUsage: Math.round(totalSessionUsage),
       usageBuckets: this.calculateUsageBuckets(24 * 60, 60) // 24 hours, 60 min buckets
     };
+  }
+
+  /**
+   * Group models with identical quota status (same %, same reset time)
+   */
+  private groupSimilarModels(models: ModelWithInsights[]): ModelWithInsights[] {
+    const groups = new Map<string, ModelWithInsights[]>();
+
+    for (const model of models) {
+      // Create fingerprint: percent + reset time
+      const fingerprint = `${model.remainingPercent}-${model.timeUntilReset || 'none'}`;
+
+      if (!groups.has(fingerprint)) {
+        groups.set(fingerprint, []);
+      }
+      groups.get(fingerprint)!.push(model);
+    }
+
+    const result: ModelWithInsights[] = [];
+
+    for (const [_, groupModels] of groups) {
+      if (groupModels.length === 1) {
+        result.push(groupModels[0]);
+      } else {
+        // Create grouped model
+        const first = groupModels[0];
+        const names = groupModels.map(m => m.label.split(' ')[0]).join(', ');
+        result.push({
+          ...first,
+          label: `${names} (${groupModels.length})`,
+          modelId: `group-${first.modelId}`,
+        });
+      }
+    }
+
+    return result;
   }
 
   private recordSnapshot(snapshot: QuotaSnapshot): void {
