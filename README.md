@@ -1,92 +1,135 @@
-# Antigravity Usage
+<div align="center">
+    <img src="resources/dashboard.svg" width="128" height="128" alt="Antigravity Usage Icon"/>
+</div>
 
-**The Definitive Quota Tracker for Antigravity AI.**
+<div align="center">
+    <!-- Version -->
+    <a href="https://marketplace.visualstudio.com/items?itemName=Zendevve.antigravity-usage">
+        <img src="https://img.shields.io/visual-studio-marketplace/v/Zendevve.antigravity-usage?style=for-the-badge&logo=visual-studio-code&color=007ACC" alt="Version"/>
+    </a>
+    <!-- Installs -->
+    <a href="https://marketplace.visualstudio.com/items?itemName=Zendevve.antigravity-usage">
+        <img src="https://img.shields.io/visual-studio-marketplace/i/Zendevve.antigravity-usage?style=for-the-badge&logo=visual-studio-code&color=007ACC" alt="Installs"/>
+    </a>
+    <!-- License -->
+    <a href="./LICENSE">
+        <img src="https://img.shields.io/github/license/Zendevve/antigravity-usage?style=for-the-badge&logo=github&color=Silver" alt="License"/>
+    </a>
+    <!-- PRG Badge: Gold (Self-assigned based on product maturity) -->
+    <a href="./README.md">
+         <img src="https://img.shields.io/badge/PRG-Gold%20Project-FFD700?style=for-the-badge&logo=visual-studio-code" alt="PRG Gold"/>
+    </a>
+</div>
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue)](https://marketplace.visualstudio.com/items?itemName=zendevve.antigravity-usage)
-[![Privacy](https://img.shields.io/badge/privacy-100%25%20local-green)](https://github.com/Zendevve/antigravity-usage)
-[![Works In](https://img.shields.io/badge/works%20in-DevContainers%20%7C%20WSL%20%7C%20SSH-orange)](https://github.com/Zendevve/antigravity-usage)
+<div align="center">
+    <h3>Antigravity Usage</h3>
+    <p>Premium AI usage dashboard for AntiGravity with burn rate tracking, exhaustion predictions, and beautiful insights.</p>
+</div>
 
----
+--------------------------------------------------------------------------------
 
-> **"Stop Guessing. Start Knowing."**
+## Table of Contents
 
-Antigravity Usage transforms your status bar into a precision instrument for AI quota monitoring. Unlike competitors, we provide **predictive analytics**, **universal compatibility**, and a **privacy-first** architecture.
+- [Features](#features)
+- [Background Story](#background-story)
+- [Getting Started](#getting-started)
+- [Configuration](#configuration)
+- [What's Inside?](#whats-inside)
+- [Resources](#resources)
+- [License](#license)
+- [Credits](#credits)
 
-## 🔒 Privacy Firewall
+## Features
 
-**100% Local. Zero Telemetry. Your Code Stays Yours.**
+**Antigravity Usage** redefines how you monitor your AI consumption. Built for power users who need clarity, prediction, and aesthetics.
 
-- All data processing happens locally on your machine
-- No external network calls (we only talk to `localhost`)
-- No analytics, no tracking, no data collection
-- Safe for enterprise and air-gapped environments
+- **Real-Time Dashboards**: A unified Sidebar and Full-Screen Dashboard monitoring all your quotas in real-time.
+- **Insights Engine**: Advanced analytics including *Session Burn Rate* and *Predicted Exhaustion* times.
+- **Visual Intelligence**:
+  - **Laws of UX Compliance**: Designed using Miller's Law (chunking), Von Restorff Effect (critical alerts), and Aesthetic-Usability Effect.
+  - **Status Indicators**: Dynamic color-coded bars and badges for instant health checks.
+- **Zero Config**: Automatically detects your local Antigravity server ports.
+- **Platform Agnostic**: Works perfectly on Windows and macOS.
 
-## ✨ Features
+## Background Story
 
-### 📊 Predictive Analytics
-- **Burn Rate Tracking**: Real-time consumption velocity (%/hour)
-- **Time-to-Empty**: "You'll run out in ~2h 15m at this pace"
-- **Session Stats**: Track your impact since VS Code opened
-- **Active Model Detection**: Heuristic-based identification of which model you're using
+Managing AI quotas shouldn't feel like managing a spreadsheet. I built **Antigravity Usage** to bring a layer of "Premium Utility" to the developer workflow. By leveraging modern design principles and a reactive state architecture, this extension transforms raw JSON data into actionable, beautiful insights, keeping you in flow without the anxiety of hitting sudden limits.
 
-### 🌐 Universal Compatibility (NEW in 0.5.0)
-- **DevContainers**: Works inside Docker containers
-- **WSL2**: Full Windows Subsystem for Linux support
-- **Remote SSH**: Develop on any remote machine
-- **Corporate VDI**: No `lsof` or admin rights required
+## Getting Started
 
-Our hybrid detection uses Node.js socket scanning as primary method—no OS commands needed.
+### Installation
 
-### 🧹 Smart Context Flush (NEW in 0.5.0)
-When your agent gets stuck or confused, surgically clear the context without losing your work:
-- `Ctrl+Shift+Alt+F` or `Antigravity: Flush Active Context`
-- **Clears**: Conversation memory, code embeddings
-- **Preserves**: Brain tasks, implementation plans, task.md files
+1. Open **VS Code**.
+2. Press `Ctrl+P` and type `ext install Zendevve.antigravity-usage`.
+3. The extension automatically activates when it detects an active Antigravity session.
 
-### 💻 Dashboard
-- Minimal, brutalist design
-- Per-model quota breakdown
-- Sparkline history charts
-- Cache management
+### Usage
 
-## 📊 Why AG-Usage?
+- **Status Bar**: Click the "AG" status bar item to open the Quick Sidebar.
+- **Sidebar**: View your primary model's health at a glance.
+- **Dashboard**: Click "Open Dashboard" for deep analytics, charts, and historical trends.
+- **Commands**:
+  - `Antigravity: Refresh Quota` - Force a manual update.
+  - `Antigravity: Open Dashboard` - Launch the full analytics view.
+  - `Antigravity: Clear History` - Reset your session stats.
 
-| Feature | AG-Usage | Others |
-|---------|:--------:|:------:|
-| Predictive Analytics | ✅ | Partial |
-| Universal Port Detection | ✅ | ❌ (lsof) |
-| DevContainer Support | ✅ | ❌ |
-| Smart Context Flush | ✅ | Nuclear only |
-| Privacy (100% Local) | ✅ | Varies |
-| Zero Configuration | ✅ | ❌ |
+## Configuration
 
-## 🔧 Commands
+Customize your experience in `Settings > Extensions > Antigravity Usage`.
 
-| Command | Shortcut | Description |
-|---------|:--------:|-------------|
-| `Antigravity: Open Dashboard` | — | Full webview dashboard |
-| `Antigravity: Quick Status` | — | Quick model summary |
-| `Antigravity: Flush Active Context` | `Ctrl+Shift+Alt+F` | Surgical context clear |
-| `Antigravity: Clean Cache` | — | Nuclear delete (all data) |
-| `Antigravity: Pin Model...` | — | Prioritize models in display |
+| Setting | Description | Default |
+| :--- | :--- | :--- |
+| `antigravity.refreshInterval` | Polling frequency in milliseconds. | `3000` |
+| `antigravity.warningThreshold` | Percentage at which the status bar turns yellow/red. | `10` |
+| `antigravity.displayStyle` | visual formatting of status bar (`percentage`, `fraction`, `icon`). | `percentage` |
+| `antigravity.pinnedModels` | List of models to keep at the top of your capabilities list. | `[]` |
 
-## 📦 Installation
+## What's Inside?
 
-1. Open **Antigravity** or VS Code
-2. `Ctrl+Shift+X` → Search **"Antigravity Usage"**
-3. Click **Install**
+```bash
+├── docs/                # Feature specs, ADRs, and guides
+│   ├── ADR/             # Architecture Decision Records
+│   └── Features/        # Deep dive into functionality
+├── src/                 # Source Code
+│   ├── core/            # Business Logic (Store, Fetcher, Insights)
+│   ├── ui/              # UI Components (Renderer, Tokens)
+│   └── utils/           # Formatters and Helpers
+├── legacy/              # Archived V1 codebase
+└── package.json         # Manifest and Configuration
+```
 
-## 🛠️ Technical Details
+## Resources
 
-- **Hybrid Port Detection**: Socket scanner (primary) + OS commands (fallback)
-- **Polling**: Configurable interval (30-300 seconds)
-- **Burn Rate**: Sliding window average over historical snapshots
-- **Active Detection**: First-derivative analysis of usage changes
+This project leverages the following powerful libraries:
 
-## 🤝 Contributing
+- [VS Code Extension API](https://code.visualstudio.com/api) - The framework for integration.
+- [TypeScript](https://www.typescriptlang.org/) - For strict type safety and architectural robustness.
+- [Redux Pattern](https://redux.js.org/) - Inspired the internal `QuotaStore` design.
 
-See [AGENTS.md](AGENTS.md) for MCAF compliance rules.
+## License
 
----
-**Built by Zendevve** · MIT License · © 2025
+This project is licensed under the **MIT License**.
 
+- **Why MIT?** I believe tools like this should be open and accessible. You are free to fork, modify, and improve this dashboard.
+
+See the [LICENSE](./LICENSE) file for details.
+
+--------------------------------------------------------------------------------
+
+## Credits
+
+### Creator
+
+**Zendevve**
+- [GitHub Profile](https://github.com/Zendevve)
+
+### Tools
+
+Built with **MCAF** (Managed Code Coding AI Framework).
+
+<div align="center">
+    <hr>
+    <a href="https://github.com/Zendevve">
+        <img src="resources/dashboard.svg" width="64" height="64" alt="Footer Icon"/>
+    </a>
+</div>
